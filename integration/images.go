@@ -46,7 +46,7 @@ const (
 	kanikoPrefix     = "kaniko-"
 	buildContextPath = "/workspace"
 	cacheDir         = "/workspace/cache"
-	baseImageToCache = "gcr.io/google-appengine/debian9@sha256:1d6a9a6d106bd795098f60f4abb7083626354fa6735e81743c7f8cfca11259f0"
+	baseImageToCache = "debian:12.10@sha256:264982ff4d18000fa74540837e2c43ca5137a53a83f8f62c7b3803c0f0bdcd56"
 )
 
 // Arguments to build Dockerfiles with, used for both docker and kaniko builds
@@ -84,6 +84,7 @@ var envsMap = map[string][]string{
 var KanikoEnv = []string{
 	"FF_KANIKO_COPY_AS_ROOT=1",
 	"FF_KANIKO_OCI_STAGES=1",
+	"FF_KANIKO_IGNORE_CACHED_MANIFEST=1",
 }
 
 // Arguments to build Dockerfiles with when building with docker
@@ -161,6 +162,13 @@ var outputChecks = map[string]func(string, []byte) error{
 			}
 		}
 
+		return nil
+	},
+	"Dockerfile_test_issue_mz320": func(_ string, out []byte) error {
+		s := "Found sha256:6bc30d909583f38600edd6609e29eb3fb284ab8affce8d0389f332fc91c2dd91 in local cache"
+		if !strings.Contains(string(out), s) {
+			return fmt.Errorf("output must contain %s", s)
+		}
 		return nil
 	},
 }
@@ -267,9 +275,10 @@ func NewDockerFileBuilder() *DockerFileBuilder {
 		// TODO: All the below tests are fialing with errro
 		// You don't have the needed permissions to perform this operation, and you may have invalid credentials.
 		// To authenticate your request, follow the steps in: https://cloud.google.com/container-registry/docs/advanced-authentication
-		"Dockerfile_test_onbuild":    {},
-		"Dockerfile_test_extraction": {},
-		"Dockerfile_test_hardlink":   {},
+		"Dockerfile_test_onbuild":     {},
+		"Dockerfile_test_extraction":  {},
+		"Dockerfile_test_hardlink":    {},
+		"Dockerfile_test_issue_mz320": {},
 	}
 	d.TestCacheDockerfiles = map[string]struct{}{
 		"Dockerfile_test_cache":         {},
@@ -280,6 +289,7 @@ func NewDockerFileBuilder() *DockerFileBuilder {
 		"Dockerfile_test_issue_workdir": {},
 		"Dockerfile_test_issue_add":     {},
 		"Dockerfile_test_issue_empty":   {},
+		"Dockerfile_test_issue_mz320":   {},
 	}
 	d.TestOCICacheDockerfiles = map[string]struct{}{
 		"Dockerfile_test_cache_oci":         {},
@@ -414,7 +424,6 @@ func populateVolumeCache() error {
 	warmerCmd := exec.Command("docker",
 		append([]string{
 			"run", "--net=host",
-			"-d",
 			"-v", os.Getenv("HOME") + "/.config/gcloud:/root/.config/gcloud",
 			"-v", cwd + ":/workspace",
 			WarmerImage,
