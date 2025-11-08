@@ -196,7 +196,7 @@ jobs:
 
       # If a tag push, distribute to other registries too
       - if: startsWith(github.ref, 'refs/tags/v')
-        name: Distribute to GHCR
+        name: Distribute to Docker hub
         run: |
           tag=${GITHUB_REF/refs\/tags\//}
 
